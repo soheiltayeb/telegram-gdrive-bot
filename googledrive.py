@@ -6,8 +6,18 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, fil
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
-
 from google.oauth2.service_account import Credentials
+from google.oauth2.service_account import Credentials
+import os
+import json
+
+# دریافت متغیر محیطی
+credentials_json = os.getenv("GOOGLE_CREDENTIALS")
+if not credentials_json:
+    raise Exception("❌ GOOGLE_CREDENTIALS not found in environment variables")
+
+# لود کردن اعتبارنامه گوگل از JSON
+creds = Credentials.from_service_account_info(json.loads(credentials_json))
 
 credentials_json = os.getenv("GOOGLE_CREDENTIALS")
 if not credentials_json:
