@@ -7,6 +7,12 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 import json
 
+
+if "GOOGLE_CREDENTIALS" in os.environ:
+    print("متغیر محیطی تنظیم شده است.")
+else:
+    print("متغیر محیطی یافت نشد.")
+
 print("GOOGLE_CREDENTIALS:", os.getenv("GOOGLE_CREDENTIALS"))
 
 
