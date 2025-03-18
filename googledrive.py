@@ -5,6 +5,14 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, fil
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
+import json
+
+credentials_json = os.getenv("GOOGLE_CREDENTIALS")
+if credentials_json:
+    creds = json.loads(credentials_json)
+else:
+    raise Exception("GOOGLE_CREDENTIALS not found in environment variables")
+
 
 # لاگ‌گیری
 logging.basicConfig(level=logging.INFO)
