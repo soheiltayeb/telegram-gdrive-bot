@@ -1,1 +1,1 @@
-web: python googledrive.py
+worker: python googledrive.py
