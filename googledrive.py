@@ -1,37 +1,26 @@
 import os
 import logging
+import json
 from telegram import Update, Bot
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
-import json
 
-
-if "GOOGLE_CREDENTIALS" in os.environ:
-    print("متغیر محیطی تنظیم شده است.")
-else:
-    print("متغیر محیطی یافت نشد.")
-
-print("GOOGLE_CREDENTIALS:", os.getenv("GOOGLE_CREDENTIALS"))
-
-
+# بررسی متغیر محیطی
 credentials_json = os.getenv("GOOGLE_CREDENTIALS")
-if credentials_json:
-    creds = json.loads(credentials_json)
-else:
-    raise Exception("GOOGLE_CREDENTIALS not found in environment variables")
-
+if not credentials_json:
+    raise Exception("❌ GOOGLE_CREDENTIALS not found in environment variables")
 
 # لاگ‌گیری
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # توکن ربات تلگرام
-TELEGRAM_BOT_TOKEN = '7685688487:AAHBtY6Gol0X4JjvcDAODxa34X4gWyXaNFQ'
+TELEGRAM_BOT_TOKEN = os.getenv("7685688487:AAHBtY6Gol0X4JjvcDAODxa34X4gWyXaNFQ")  # بهتر است توکن را در متغیر محیطی ذخیره کنی
 
 # لود کردن اعتبارنامه گوگل
-creds = Credentials.from_authorized_user_file('token.json', ['https://www.googleapis.com/auth/drive.file'])
+creds = Credentials.from_authorized_user_info(json.loads(credentials_json))
 
 # ساخت سرویس گوگل درایو
 drive_service = build('drive', 'v3', credentials=creds, cache_discovery=False)
@@ -39,7 +28,7 @@ drive_service = build('drive', 'v3', credentials=creds, cache_discovery=False)
 
 # دستور شروع
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text('سلام! فایل خود را برای آپلود به گوگل درایو ارسال کنید.')
+    await update.message.reply_text('سلام! فایل خود را ارسال کنید تا در گوگل درایو آپلود شود.')
 
 # مدیریت فایل‌های ارسالی
 async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -47,12 +36,12 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     file_name = update.message.document.file_name
     file_path = f'downloads/{file_name}'
 
-    # ساخت پوشه دانلود (در صورت نبود)
+    # ساخت پوشه دانلود
     os.makedirs('downloads', exist_ok=True)
 
     # دانلود فایل
-    await file.download_to_drive(file_path)
-    await update.message.reply_text('فایل دریافت شد. در حال آپلود...')
+    await file.download(file_path)
+    await update.message.reply_text('✅ فایل دریافت شد. در حال آپلود...')
 
     # آپلود به گوگل درایو
     file_metadata = {'name': file_name}
@@ -65,7 +54,7 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     file_link = f"https://drive.google.com/file/d/{file_id}/view?usp=sharing"
 
     # ارسال لینک به کاربر
-    await update.message.reply_text(f'فایل آپلود شد! لینک دانلود:\n{file_link}')
+    await update.message.reply_text(f'✅ فایل آپلود شد! لینک دانلود:\n{file_link}')
 
     # حذف فایل محلی
     os.remove(file_path)
@@ -75,9 +64,9 @@ def main():
     app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
 
     app.add_handler(CommandHandler('start', start))
-    app.add_handler(MessageHandler(filters.Document.ALL, handle_file))
+    app.add_handler(MessageHandler(filters.ATTACHMENT, handle_file))
 
-    logger.info("ربات اجرا شد...")
+    logger.info("🚀 ربات اجرا شد...")
     app.run_polling()
 
 if __name__ == '__main__':
