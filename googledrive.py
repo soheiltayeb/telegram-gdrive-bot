@@ -7,6 +7,9 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 import json
 
+print("GOOGLE_CREDENTIALS:", os.getenv("GOOGLE_CREDENTIALS"))
+
+
 credentials_json = os.getenv("GOOGLE_CREDENTIALS")
 if credentials_json:
     creds = json.loads(credentials_json)
