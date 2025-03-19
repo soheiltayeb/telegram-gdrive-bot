@@ -1,53 +1,28 @@
 import os
 import logging
 import json
-from telegram import Update, Bot
+from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
-from google.oauth2.credentials import Credentials
+from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
-from google.oauth2.service_account import Credentials
-# دریافت متغیر محیطی
-credentials_json = os.getenv("GOOGLE_CREDENTIALS")
-if not credentials_json:
+
+# دریافت متغیرهای محیطی
+GOOGLE_CREDENTIALS = os.getenv("GOOGLE_CREDENTIALS")
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+
+if not GOOGLE_CREDENTIALS:
     raise Exception("❌ GOOGLE_CREDENTIALS not found in environment variables")
+if not TELEGRAM_BOT_TOKEN:
+    raise Exception("❌ TELEGRAM_BOT_TOKEN not found in environment variables")
 
-# تبدیل JSON محیطی به اعتبارنامه
-creds = Credentials.from_service_account_info(json.loads(credentials_json))
+# بارگذاری اعتبارنامه گوگل درایو
+creds = Credentials.from_service_account_info(json.loads(GOOGLE_CREDENTIALS))
+drive_service = build('drive', 'v3', credentials=creds)
 
-
-# دریافت متغیر محیطی
-credentials_json = os.getenv("GOOGLE_CREDENTIALS")
-if not credentials_json:
-    raise Exception("❌ GOOGLE_CREDENTIALS not found in environment variables")
-
-# لود کردن اعتبارنامه گوگل از JSON
-creds = Credentials.from_service_account_info(json.loads(credentials_json))
-
-credentials_json = os.getenv("GOOGLE_CREDENTIALS")
-if not credentials_json:
-    raise Exception("❌ GOOGLE_CREDENTIALS not found in environment variables")
-
-creds = Credentials.from_service_account_info(json.loads(credentials_json))
-
-# بررسی متغیر محیطی
-credentials_json = os.getenv("GOOGLE_CREDENTIALS")
-if not credentials_json:
-    raise Exception("❌ GOOGLE_CREDENTIALS not found in environment variables")
-
-# لاگ‌گیری
+# تنظیمات لاگ‌گیری
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-# توکن ربات تلگرام
-TELEGRAM_BOT_TOKEN = os.getenv("7685688487:AAHBtY6Gol0X4JjvcDAODxa34X4gWyXaNFQ")  # بهتر است توکن را در متغیر محیطی ذخیره کنی
-
-# لود کردن اعتبارنامه گوگل
-creds = Credentials.from_authorized_user_info(json.loads(credentials_json))
-
-# ساخت سرویس گوگل درایو
-drive_service = build('drive', 'v3', credentials=creds, cache_discovery=False)
-
 
 # دستور شروع
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -87,7 +62,7 @@ def main():
     app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
 
     app.add_handler(CommandHandler('start', start))
-    app.add_handler(MessageHandler(filters.ATTACHMENT, handle_file))
+    app.add_handler(MessageHandler(filters.Document.ALL, handle_file))
 
     logger.info("🚀 ربات اجرا شد...")
     app.run_polling()
