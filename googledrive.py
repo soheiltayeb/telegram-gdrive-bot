@@ -9,7 +9,7 @@ from googleapiclient.http import MediaFileUpload
 
 # دریافت متغیرهای محیطی
 GOOGLE_CREDENTIALS = os.getenv("GOOGLE_CREDENTIALS")
-TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_BOT_TOKEN = os.getenv("7685688487:AAHBtY6Gol0X4JjvcDAODxa34X4gWyXaNFQ")
 
 if not GOOGLE_CREDENTIALS:
     raise Exception("❌ GOOGLE_CREDENTIALS not found in environment variables")
