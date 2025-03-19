@@ -38,7 +38,7 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     os.makedirs('downloads', exist_ok=True)
 
     # دانلود فایل
-    await file.download(file_path)
+    await file.download_to_drive(file_path)
     await update.message.reply_text('✅ فایل دریافت شد. در حال آپلود...')
 
     # آپلود به گوگل درایو
