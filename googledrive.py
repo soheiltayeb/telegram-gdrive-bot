@@ -1,16 +1,18 @@
 import os
 import logging
 import json
+import requests
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaFileUpload
+from googleapiclient.http import MediaIoBaseUpload
+import io
 
 # دریافت متغیرهای محیطی
 GOOGLE_CREDENTIALS = os.getenv("GOOGLE_CREDENTIALS")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-FOLDER_ID = os.getenv("GOOGLE_DRIVE_FOLDER_ID")  # شناسه پوشه در گوگل درایو (اختیاری)
+FOLDER_ID = os.getenv("GOOGLE_DRIVE_FOLDER_ID")  # اختیاری
 
 if not GOOGLE_CREDENTIALS:
     raise Exception("❌ GOOGLE_CREDENTIALS not found in environment variables")
@@ -32,40 +34,45 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # مدیریت فایل‌های ارسالی
 async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
-        file = await update.message.document.get_file()
-        file_name = update.message.document.file_name
-        file_path = f'downloads/{file_name}'
+        file = update.message.document
+        file_id = file.file_id
+        file_name = file.file_name
+        file_size = file.file_size
 
-        logger.info(f"📥 دریافت فایل: {file_name}")
+        logger.info(f"📥 دریافت فایل: {file_name} ({file_size / 1024 / 1024:.2f} MB)")
 
-        # ساخت پوشه دانلود
-        os.makedirs('downloads', exist_ok=True)
-
-        # دانلود فایل از تلگرام
-        await file.download_to_drive(file_path)
-        await update.message.reply_text('✅ فایل دریافت شد. در حال آپلود...')
-
-        # تنظیمات آپلود به گوگل درایو
-        file_metadata = {'name': file_name}
-        if FOLDER_ID:
-            file_metadata['parents'] = [FOLDER_ID]
-
-        media = MediaFileUpload(file_path, resumable=True)
-
-        # آپلود فایل به گوگل درایو
-        try:
-            uploaded_file = drive_service.files().create(
-                body=file_metadata, media_body=media, fields='id'
-            ).execute()
-        except Exception as e:
-            logger.error(f"❌ خطا در آپلود به گوگل درایو: {e}")
-            await update.message.reply_text("❌ خطایی در آپلود فایل رخ داد. لطفاً دوباره امتحان کنید.")
+        # بررسی محدودیت حجم فایل
+        if file_size > 2000 * 1024 * 1024:  # محدودیت 2 گیگابایت
+            await update.message.reply_text("❌ فایل خیلی بزرگ است (حداکثر 2 گیگابایت مجاز است).")
             return
 
+        # دریافت لینک فایل از تلگرام
+        file_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getFile?file_id={file_id}"
+        response = requests.get(file_url).json()
+
+        if "result" not in response:
+            await update.message.reply_text("❌ خطایی در دریافت لینک فایل از تلگرام رخ داد.")
+            return
+
+        file_path = response["result"]["file_path"]
+        download_url = f"https://api.telegram.org/file/bot{TELEGRAM_BOT_TOKEN}/{file_path}"
+
+        await update.message.reply_text("✅ لینک دریافت شد. در حال آپلود به گوگل درایو...")
+
+        # دانلود فایل از تلگرام و آپلود مستقیم به گوگل درایو
+        file_stream = requests.get(download_url, stream=True)
+        media = MediaIoBaseUpload(io.BytesIO(file_stream.content), mimetype="application/octet-stream", resumable=True)
+
+        file_metadata = {"name": file_name}
+        if FOLDER_ID:
+            file_metadata["parents"] = [FOLDER_ID]
+
+        uploaded_file = drive_service.files().create(body=file_metadata, media_body=media, fields="id").execute()
+
         # دریافت لینک دانلود
-        file_id = uploaded_file.get('id')
-        drive_service.permissions().create(fileId=file_id, body={'role': 'reader', 'type': 'anyone'}).execute()
-        file_link = f"https://drive.google.com/file/d/{file_id}/view?usp=sharing"
+        uploaded_file_id = uploaded_file.get("id")
+        drive_service.permissions().create(fileId=uploaded_file_id, body={"role": "reader", "type": "anyone"}).execute()
+        file_link = f"https://drive.google.com/file/d/{uploaded_file_id}/view?usp=sharing"
 
         logger.info(f"✅ آپلود شد: {file_link}")
 
@@ -75,11 +82,6 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         logger.error(f"❌ خطای عمومی: {e}")
         await update.message.reply_text("❌ مشکلی پیش آمد. لطفاً دوباره تلاش کنید.")
-
-    finally:
-        # حذف فایل محلی برای جلوگیری از پر شدن حافظه
-        if os.path.exists(file_path):
-            os.remove(file_path)
 
 # راه‌اندازی ربات
 def main():
