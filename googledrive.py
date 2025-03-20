@@ -12,6 +12,7 @@ import io
 # دریافت متغیرهای محیطی
 GOOGLE_CREDENTIALS = os.getenv("GOOGLE_CREDENTIALS")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+FOLDER_ID = os.getenv("GOOGLE_DRIVE_FOLDER_ID")  # اختیاری
 
 if not GOOGLE_CREDENTIALS:
     raise Exception("❌ GOOGLE_CREDENTIALS not found in environment variables")
@@ -28,7 +29,10 @@ logger = logging.getLogger(__name__)
 
 # دستور شروع
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text('سلام! فایل خود را ارسال کنید تا در گوگل درایو آپلود شود.')
+    await update.message.reply_text(
+        "سلام! فایل خود را ارسال کنید تا در گوگل درایو آپلود شود.\n"
+        "📌 اگر فایل شما بالای 50MB باشد، باید لینک عمومی آن را ارسال کنید."
+    )
 
 # مدیریت فایل‌های ارسالی
 async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -40,9 +44,12 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         logger.info(f"📥 دریافت فایل: {file_name} ({file_size / 1024 / 1024:.2f} MB)")
 
-        # بررسی محدودیت حجم فایل
-        if file_size > 2000 * 1024 * 1024:  # محدودیت 2 گیگابایت
-            await update.message.reply_text("❌ فایل خیلی بزرگ است (حداکثر 2 گیگابایت مجاز است).")
+        # بررسی حجم فایل
+        if file_size > 50 * 1024 * 1024:
+            await update.message.reply_text(
+                "❌ تلگرام اجازه دانلود مستقیم فایل‌های بالای 50MB را نمی‌دهد.\n"
+                "🔹 لطفاً فایل را به @GetPublicLinkBot ارسال کنید و لینک آن را اینجا بفرستید. 📎"
+            )
             return
 
         # دریافت مسیر فایل از تلگرام
@@ -58,7 +65,7 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         await update.message.reply_text("✅ لینک دریافت شد. در حال دانلود و آپلود به گوگل درایو...")
 
-        # دانلود فایل از تلگرام و آپلود مستقیم به گوگل درایو
+        # دانلود فایل و آپلود به گوگل درایو
         file_stream = requests.get(download_url, stream=True)
         media = MediaIoBaseUpload(io.BytesIO(file_stream.content), mimetype="application/octet-stream", resumable=True)
 
@@ -82,12 +89,44 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"❌ خطای عمومی: {e}")
         await update.message.reply_text("❌ مشکلی پیش آمد. لطفاً دوباره تلاش کنید.")
 
+# مدیریت لینک‌های ارسال‌شده توسط کاربر
+async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    try:
+        url = update.message.text
+        if "http" not in url or "telegram" not in url:
+            await update.message.reply_text("❌ لطفاً یک لینک معتبر تلگرام ارسال کنید.")
+            return
+
+        await update.message.reply_text("🔄 در حال دانلود و آپلود به گوگل درایو...")
+
+        # دانلود فایل از لینک
+        file_stream = requests.get(url, stream=True)
+        file_name = url.split("/")[-1]  # استخراج نام فایل از لینک
+        media = MediaIoBaseUpload(io.BytesIO(file_stream.content), mimetype="application/octet-stream", resumable=True)
+
+        file_metadata = {"name": file_name}
+        if FOLDER_ID:
+            file_metadata["parents"] = [FOLDER_ID]
+
+        uploaded_file = drive_service.files().create(body=file_metadata, media_body=media, fields="id").execute()
+
+        # تنظیم دسترسی عمومی
+        file_id = uploaded_file.get("id")
+        drive_service.permissions().create(fileId=file_id, body={"role": "reader", "type": "anyone"}).execute()
+        file_link = f"https://drive.google.com/file/d/{file_id}/view?usp=sharing"
+
+        await update.message.reply_text(f"✅ فایل آپلود شد!\n📎 لینک دانلود: {file_link}")
+
+    except Exception as e:
+        await update.message.reply_text("❌ مشکلی پیش آمد. لطفاً دوباره تلاش کنید.")
+
 # راه‌اندازی ربات
 def main():
     app = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
 
     app.add_handler(CommandHandler('start', start))
     app.add_handler(MessageHandler(filters.Document.ALL, handle_file))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_link))  # هندلر لینک
 
     logger.info("🚀 ربات اجرا شد...")
     app.run_polling()
