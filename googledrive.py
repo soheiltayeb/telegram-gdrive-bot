@@ -10,6 +10,7 @@ from googleapiclient.http import MediaFileUpload
 # دریافت متغیرهای محیطی
 GOOGLE_CREDENTIALS = os.getenv("GOOGLE_CREDENTIALS")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+FOLDER_ID = os.getenv("GOOGLE_DRIVE_FOLDER_ID")  # شناسه پوشه در گوگل درایو (اختیاری)
 
 if not GOOGLE_CREDENTIALS:
     raise Exception("❌ GOOGLE_CREDENTIALS not found in environment variables")
@@ -30,32 +31,55 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 # مدیریت فایل‌های ارسالی
 async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    file = await update.message.document.get_file()
-    file_name = update.message.document.file_name
-    file_path = f'downloads/{file_name}'
+    try:
+        file = await update.message.document.get_file()
+        file_name = update.message.document.file_name
+        file_path = f'downloads/{file_name}'
 
-    # ساخت پوشه دانلود
-    os.makedirs('downloads', exist_ok=True)
+        logger.info(f"📥 دریافت فایل: {file_name}")
 
-    # دانلود فایل
-    await file.download_to_drive(file_path)
-    await update.message.reply_text('✅ فایل دریافت شد. در حال آپلود...')
+        # ساخت پوشه دانلود
+        os.makedirs('downloads', exist_ok=True)
 
-    # آپلود به گوگل درایو
-    file_metadata = {'name': file_name}
-    media = MediaFileUpload(file_path, resumable=True)
-    uploaded_file = drive_service.files().create(body=file_metadata, media_body=media, fields='id').execute()
+        # دانلود فایل از تلگرام
+        await file.download_to_drive(file_path)
+        await update.message.reply_text('✅ فایل دریافت شد. در حال آپلود...')
 
-    # ایجاد لینک دانلود
-    file_id = uploaded_file.get('id')
-    drive_service.permissions().create(fileId=file_id, body={'role': 'reader', 'type': 'anyone'}).execute()
-    file_link = f"https://drive.google.com/file/d/{file_id}/view?usp=sharing"
+        # تنظیمات آپلود به گوگل درایو
+        file_metadata = {'name': file_name}
+        if FOLDER_ID:
+            file_metadata['parents'] = [FOLDER_ID]
 
-    # ارسال لینک به کاربر
-    await update.message.reply_text(f'✅ فایل آپلود شد! لینک دانلود:\n{file_link}')
+        media = MediaFileUpload(file_path, resumable=True)
 
-    # حذف فایل محلی
-    os.remove(file_path)
+        # آپلود فایل به گوگل درایو
+        try:
+            uploaded_file = drive_service.files().create(
+                body=file_metadata, media_body=media, fields='id'
+            ).execute()
+        except Exception as e:
+            logger.error(f"❌ خطا در آپلود به گوگل درایو: {e}")
+            await update.message.reply_text("❌ خطایی در آپلود فایل رخ داد. لطفاً دوباره امتحان کنید.")
+            return
+
+        # دریافت لینک دانلود
+        file_id = uploaded_file.get('id')
+        drive_service.permissions().create(fileId=file_id, body={'role': 'reader', 'type': 'anyone'}).execute()
+        file_link = f"https://drive.google.com/file/d/{file_id}/view?usp=sharing"
+
+        logger.info(f"✅ آپلود شد: {file_link}")
+
+        # ارسال لینک به کاربر
+        await update.message.reply_text(f'✅ فایل آپلود شد! لینک دانلود:\n{file_link}')
+
+    except Exception as e:
+        logger.error(f"❌ خطای عمومی: {e}")
+        await update.message.reply_text("❌ مشکلی پیش آمد. لطفاً دوباره تلاش کنید.")
+
+    finally:
+        # حذف فایل محلی برای جلوگیری از پر شدن حافظه
+        if os.path.exists(file_path):
+            os.remove(file_path)
 
 # راه‌اندازی ربات
 def main():
