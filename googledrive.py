@@ -12,7 +12,6 @@ import io
 # دریافت متغیرهای محیطی
 GOOGLE_CREDENTIALS = os.getenv("GOOGLE_CREDENTIALS")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-FOLDER_ID = os.getenv("GOOGLE_DRIVE_FOLDER_ID")  # اختیاری
 
 if not GOOGLE_CREDENTIALS:
     raise Exception("❌ GOOGLE_CREDENTIALS not found in environment variables")
