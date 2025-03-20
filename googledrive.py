@@ -46,9 +46,9 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("❌ فایل خیلی بزرگ است (حداکثر 2 گیگابایت مجاز است).")
             return
 
-        # دریافت لینک فایل از تلگرام
-        file_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getFile?file_id={file_id}"
-        response = requests.get(file_url).json()
+        # دریافت مسیر فایل از تلگرام
+        file_info_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/getFile?file_id={file_id}"
+        response = requests.get(file_info_url).json()
 
         if "result" not in response:
             await update.message.reply_text("❌ خطایی در دریافت لینک فایل از تلگرام رخ داد.")
@@ -57,7 +57,7 @@ async def handle_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
         file_path = response["result"]["file_path"]
         download_url = f"https://api.telegram.org/file/bot{TELEGRAM_BOT_TOKEN}/{file_path}"
 
-        await update.message.reply_text("✅ لینک دریافت شد. در حال آپلود به گوگل درایو...")
+        await update.message.reply_text("✅ لینک دریافت شد. در حال دانلود و آپلود به گوگل درایو...")
 
         # دانلود فایل از تلگرام و آپلود مستقیم به گوگل درایو
         file_stream = requests.get(download_url, stream=True)
