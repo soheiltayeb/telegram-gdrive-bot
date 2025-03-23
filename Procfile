@@ -1,1 +1,1 @@
-worker: python googledrive.py
+worker: python bot.py
